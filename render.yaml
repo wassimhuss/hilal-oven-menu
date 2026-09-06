@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: hilal-oven-menu
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist/client
+    autoDeployTrigger: commit
+    routes:
+      - type: rewrite
+        source: /admin
+        destination: /admin.html

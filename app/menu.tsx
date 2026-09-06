@@ -20,6 +20,7 @@ import {
   EmptyDescription,
 } from '@/components/ui/empty';
 import { categories, formatPrice, type MenuItem } from '@/lib/menu';
+import { listMenuItems } from '@/lib/supabase-menu';
 
 export default function Menu() {
   const [lang, setLang] = useLanguage();
@@ -39,14 +40,10 @@ export default function Menu() {
       controller?.abort();
       controller = new AbortController();
       try {
-        const response = await fetch('/api/menu', {
-          cache: 'no-store',
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error('Menu unavailable');
-        const data = (await response.json()) as { items: MenuItem[] };
+        const data = await listMenuItems();
+        if (controller.signal.aborted) return;
         if (!disposed) {
-          setItems(data.items);
+          setItems(data);
           setStatus('ready');
           setRefreshFailed(false);
           hasLoaded = true;

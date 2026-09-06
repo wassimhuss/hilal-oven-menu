@@ -1,27 +1,47 @@
 # Hilal Oven menu
 
-Arabic/English customer menu at `/`, and a protected menu dashboard at `/admin`. Prices are whole Lebanese pounds. Original logo and food artwork were extracted from the owner's supplied PDF. The menu intentionally contains no fabricated items or prices.
+Mobile-first Arabic/English customer menu at `/`, with PIN-protected menu management at `/admin`. Prices are whole Lebanese pounds. The logo and food artwork come from the owner's supplied PDF; the initial menu intentionally contains no invented items or prices.
 
-## Admin access
+## Architecture
 
-The dashboard uses the Sites platform's ChatGPT sign-in. Every admin API checks the server-side `ADMIN_EMAILS` allowlist. Missing configuration denies all admin access. Configure production values through Sites environment variables; keep them out of source control. Customers can browse anonymously when the Site's audience is public.
+- **Render Static Site** serves the exported website for free.
+- **Supabase** stores the menu and exposes anonymous read access.
+- Admin writes only work through `SECURITY DEFINER` database functions after a valid temporary admin session is issued.
+- The four-digit code is stored only as a bcrypt hash. Five failed attempts lock login for 15 minutes. Successful sessions expire after two hours and are stored only in the browser tab's `sessionStorage`.
+- Row Level Security allows public reads and blocks direct anonymous writes.
 
-The owner can create and edit bilingual names/descriptions, choose one of five categories, set an LBP price, mark an item unavailable, and confirm deletion. Saves persist in D1. Customers fetch current data on opening the menu, returning to the tab, and every 30 seconds while the tab is visible. A timestamp check prevents stale editors from overwriting or deleting newer changes.
+## Supabase setup
+
+1. Open the Supabase SQL Editor for the project.
+2. Run `supabase/migrations/001_menu_and_pin_admin.sql` once.
+3. Generate a bcrypt hash locally and set it in `private.admin_config`. Do not put the plain PIN in source control.
+
+The app uses the project's publishable key. It does not need a service-role key or a paid Render database.
 
 ## Local development
 
-Run `npm install`, then `npm run dev`. Use a local `.env` with `ADMIN_EMAILS=seedy@sites.test` to authorize the Sites local sign-in simulator. This is a development-only identity; it is not configured for production. The simulator strips supplied identity headers and provides its own identity after local sign-in.
+```bash
+npm install
+npm run dev
+```
 
-Schema: `db/schema.ts`. SQL migrations: `drizzle/`. Generate new migrations with `npm run db:generate`. Apply them to the local D1 binding with Wrangler using database ID `00000000-0000-4000-8000-000000000000` and the `.wrangler/state` persistence directory. Sites applies packaged migrations to production during deployment. Never edit an applied migration.
+The checked-in Supabase project URL and publishable key are safe for browser use. They can be overridden with `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in an ignored `.env.local` file.
 
 ## Verification
 
-- `npx tsc --noEmit`
-- `node tests/menu-api.mjs` with the local dev server, schema, and local admin identity configured. Creates temporary verification items and removes them. Refuses non-local hosts.
-- `npm run build`
+```bash
+npx tsc --noEmit
+npm run lint
+npm run build
+```
 
-The API verification covers anonymous and spoofed identity denial, cross-origin write rejection, input validation, bilingual create/edit/delete, shared data, availability, stale-edit/deletion protection, and cleanup. Browser interaction testing is a separate check.
+The static build is written to `dist/client`.
 
-## QR code
+## Render
 
-`public/hilal-oven-qr.png` and `.svg` point to `https://hilal-oven-menu.wassimah.chatgpt.site/`. PNG was decoded and verified programmatically. Admins can download it from the dashboard. Keep the URL unchanged after printing; item and price edits do not require a new QR code. Regenerate the code if the Site slug or domain changes.
+Create a **Static Site** with:
+
+- Build command: `npm ci && npm run build`
+- Publish directory: `dist/client`
+
+`render.yaml` contains the same settings. Generate the printed QR code only after the final Render URL is known.

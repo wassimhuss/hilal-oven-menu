@@ -1,5 +1,6 @@
 'use client';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useLanguage } from '@/lib/use-language';
 import { useCallback, useEffect, useState, type SubmitEvent } from 'react';
 import {
@@ -12,6 +13,8 @@ import {
   RefreshCw,
   LogOut,
   Wheat,
+  LockKeyhole,
+  ArrowLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -53,6 +56,16 @@ import {
   type MenuItem,
   type CategoryId,
 } from '@/lib/menu';
+import {
+  AdminRequestError,
+  createMenuItem,
+  deleteMenuItem,
+  listMenuItems,
+  loginAdmin,
+  logoutAdmin,
+  updateMenuItem,
+  validateAdminSession,
+} from '@/lib/supabase-menu';
 
 type Draft = {
   nameEn: string;
@@ -74,40 +87,172 @@ const newDraft = (category: string): Draft => ({
   price: '',
   available: true,
 });
-class RequestError extends Error {
-  constructor(
-    public status: number,
-    message: string,
-  ) {
-    super(message);
+const SESSION_KEY = 'hilal-oven-admin-session';
+
+export default function AdminDashboard() {
+  const [auth, setAuth] = useState<'checking' | 'signed-out' | 'signed-in'>(
+    'checking',
+  );
+  const [sessionToken, setSessionToken] = useState('');
+  const [pin, setPin] = useState('');
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    const saved = sessionStorage.getItem(SESSION_KEY) ?? '';
+    if (!saved) {
+      queueMicrotask(() => {
+        if (active) setAuth('signed-out');
+      });
+      return;
+    }
+    void validateAdminSession(saved).then((valid) => {
+      if (!active) return;
+      if (valid) {
+        setSessionToken(saved);
+        setAuth('signed-in');
+      } else {
+        sessionStorage.removeItem(SESSION_KEY);
+        setAuth('signed-out');
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  async function submitPin(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (loggingIn || !/^\d{4}$/.test(pin)) {
+      setLoginError('Enter the four-digit code. · أدخل الرمز المؤلف من أربعة أرقام.');
+      return;
+    }
+    setLoggingIn(true);
+    setLoginError('');
+    try {
+      const result = await loginAdmin(pin);
+      if (!result.ok || !result.sessionToken) {
+        if (result.reason === 'LOCKED') {
+          const minutes = Math.max(
+            1,
+            Math.ceil((result.retryAfterSeconds ?? 900) / 60),
+          );
+          setLoginError(
+            `Too many attempts. Try again in ${minutes} minutes. · محاولات كثيرة. حاول بعد ${minutes} دقيقة.`,
+          );
+        } else if (result.reason === 'NOT_CONFIGURED') {
+          setLoginError(
+            'Admin access is not configured yet. · لم يتم إعداد دخول المسؤول بعد.',
+          );
+        } else {
+          setLoginError('Incorrect code. · الرمز غير صحيح.');
+        }
+        return;
+      }
+      sessionStorage.setItem(SESSION_KEY, result.sessionToken);
+      setSessionToken(result.sessionToken);
+      setPin('');
+      setAuth('signed-in');
+    } catch {
+      setLoginError(
+        'Could not sign in. Check your connection and try again. · تعذّر تسجيل الدخول. حاول مجدداً.',
+      );
+    } finally {
+      setLoggingIn(false);
+    }
   }
-}
-async function request(path: string, method = 'GET', body?: unknown) {
-  const response = await fetch(path, {
-    method,
-    credentials: 'same-origin',
-    cache: 'no-store',
-    headers: body ? { 'Content-Type': 'application/json' } : {},
-    ...(body && method !== 'GET' ? { body: JSON.stringify(body) } : {}),
-  });
-  const data = (await response.json().catch(() => ({}))) as {
-    items: MenuItem[];
-    item: MenuItem;
-    error?: string;
-  };
-  if (!response.ok)
-    throw new RequestError(
-      response.status,
-      data.error || 'The request failed. Please try again.',
+
+  if (auth === 'checking') {
+    return (
+      <main className="admin-gate">
+        <p className="state-message">Checking admin access…</p>
+      </main>
     );
-  return data;
+  }
+
+  if (auth === 'signed-out') {
+    return (
+      <main className="admin-gate">
+        <Link href="/" className="back-link">
+          <ArrowLeft size={16} />
+          Back to menu · العودة للقائمة
+        </Link>
+        <section className="login-card">
+          <Image
+            unoptimized
+            src="/images/hilal-logo.webp"
+            alt="Hilal Oven"
+            width={160}
+            height={149}
+          />
+          <span className="login-lock">
+            <LockKeyhole size={22} strokeWidth={1.5} />
+          </span>
+          <h1>Menu management</h1>
+          <p lang="ar" dir="rtl" className="login-ar">
+            إدارة قائمة فرن هلال
+          </p>
+          <p>Enter the owner code to manage menu items and prices.</p>
+          <p lang="ar" dir="rtl">
+            أدخل رمز المسؤول لإدارة الأصناف والأسعار.
+          </p>
+          <form className="pin-form" onSubmit={submitPin}>
+            <label htmlFor="admin-pin">Admin code · رمز المسؤول</label>
+            <input
+              id="admin-pin"
+              className="pin-input"
+              type="password"
+              inputMode="numeric"
+              autoComplete="current-password"
+              pattern="[0-9]{4}"
+              maxLength={4}
+              value={pin}
+              onChange={(event) =>
+                setPin(event.target.value.replace(/\D/g, '').slice(0, 4))
+              }
+              disabled={loggingIn}
+              aria-describedby={loginError ? 'pin-error' : undefined}
+            />
+            {loginError && (
+              <p id="pin-error" className="notice error" role="alert">
+                {loginError}
+              </p>
+            )}
+            <Button
+              type="submit"
+              className="action-button pin-submit"
+              disabled={loggingIn || pin.length !== 4}
+            >
+              {loggingIn ? 'Signing in… · جارٍ الدخول…' : 'Enter · دخول'}
+            </Button>
+          </form>
+          <span className="owner-only">
+            For the menu administrator · للمسؤول فقط
+          </span>
+        </section>
+      </main>
+    );
+  }
+
+  return (
+    <Dashboard
+      sessionToken={sessionToken}
+      onSessionEnded={() => {
+        sessionStorage.removeItem(SESSION_KEY);
+        setSessionToken('');
+        setAuth('signed-out');
+      }}
+    />
+  );
 }
-export default function AdminDashboard({
-  email,
-  signOutPath,
+
+function Dashboard({
+  sessionToken,
+  onSessionEnded,
 }: {
-  email: string;
-  signOutPath: string;
+  sessionToken: string;
+  onSessionEnded: () => void;
 }) {
   const [lang, setLang] = useLanguage();
   const ar = lang === 'ar';
@@ -126,19 +271,18 @@ export default function AdminDashboard({
   const [toDelete, setToDelete] = useState<MenuItem | null>(null);
   const [formError, setFormError] = useState('');
   const translateError = (err: unknown) => {
-    if (err instanceof RequestError && err.status === 409)
+    if (err instanceof AdminRequestError && err.kind === 'conflict')
       return t(
         'This item changed in another session. Close this form, refresh, and try again.',
         'تم تعديل هذا الصنف في جلسة أخرى. أغلق النافذة وحدّث القائمة ثم حاول مجدداً.',
       );
-    if (
-      err instanceof RequestError &&
-      (err.status === 401 || err.status === 403)
-    )
+    if (err instanceof AdminRequestError && err.kind === 'session') {
+      onSessionEnded();
       return t(
-        'Your session has ended or this account does not have access. Sign out and sign in again.',
-        'انتهت الجلسة أو ليس لهذا الحساب صلاحية. سجّل الخروج ثم الدخول مجدداً.',
+        'Your session has ended. Enter the admin code again.',
+        'انتهت الجلسة. أدخل رمز المسؤول مجدداً.',
       );
+    }
     return t(
       err instanceof Error ? err.message : 'Please try again.',
       'تعذّر حفظ التغيير. تحقق من اتصالك وحاول مجدداً.',
@@ -146,8 +290,8 @@ export default function AdminDashboard({
   };
   const refresh = useCallback(async () => {
     try {
-      const data = await request('/api/admin/items');
-      setItems(data.items);
+      const data = await listMenuItems();
+      setItems(data);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -161,10 +305,10 @@ export default function AdminDashboard({
   };
   useEffect(() => {
     let active = true;
-    void request('/api/admin/items')
+    void listMenuItems()
       .then((data) => {
         if (active) {
-          setItems(data.items);
+          setItems(data);
           setLoadError(false);
         }
       })
@@ -222,21 +366,21 @@ export default function AdminDashboard({
       category: draft.category,
       priceLbp: price,
       available: draft.available,
-      ...(editing ? { updatedAt: editing.updatedAt } : {}),
     };
     try {
-      const data = await request(
-        editing ? `/api/admin/items/${editing.id}` : '/api/admin/items',
-        editing ? 'PUT' : 'POST',
-        body,
-      );
+      const saved = editing
+        ? await updateMenuItem(
+            sessionToken,
+            editing.id,
+            editing.updatedAt,
+            body,
+          )
+        : await createMenuItem(sessionToken, body);
       if (editing)
         setItems((current) =>
-          current.map((i) =>
-            i.id === editing.id ? { ...i, ...data.item } : i,
-          ),
+          current.map((i) => (i.id === editing.id ? saved : i)),
         );
-      else setItems((current) => [...current, data.item]);
+      else setItems((current) => [...current, saved]);
       setOpen(false);
       setNotice(
         t(
@@ -255,12 +399,22 @@ export default function AdminDashboard({
     setError('');
     setNotice('');
     try {
-      const data = await request(`/api/admin/items/${item.id}`, 'PUT', {
-        ...item,
-        available,
-      });
+      const saved = await updateMenuItem(
+        sessionToken,
+        item.id,
+        item.updatedAt,
+        {
+          category: item.category,
+          nameEn: item.nameEn,
+          nameAr: item.nameAr,
+          descriptionEn: item.descriptionEn,
+          descriptionAr: item.descriptionAr,
+          priceLbp: item.priceLbp,
+          available,
+        },
+      );
       setItems((current) =>
-        current.map((i) => (i.id === item.id ? { ...i, ...data.item } : i)),
+        current.map((i) => (i.id === item.id ? saved : i)),
       );
       setNotice(t('Availability updated.', 'تم تحديث التوفّر.'));
     } catch (err) {
@@ -276,9 +430,11 @@ export default function AdminDashboard({
     setNotice('');
     setError('');
     try {
-      await request(`/api/admin/items/${toDelete.id}`, 'DELETE', {
-        updatedAt: toDelete.updatedAt,
-      });
+      await deleteMenuItem(
+        sessionToken,
+        toDelete.id,
+        toDelete.updatedAt,
+      );
       setItems((current) => current.filter((i) => i.id !== toDelete.id));
       setToDelete(null);
       setNotice(t('Item removed from the menu.', 'تم حذف الصنف من القائمة.'));
@@ -287,6 +443,10 @@ export default function AdminDashboard({
     } finally {
       setSaving(false);
     }
+  }
+  async function signOut() {
+    onSessionEnded();
+    await logoutAdmin(sessionToken).catch(() => undefined);
   }
   const visible =
     filter === 'all' ? items : items.filter((i) => i.category === filter);
@@ -312,14 +472,14 @@ export default function AdminDashboard({
                 عربي
               </button>
             </div>
-            <a
-              href={signOutPath}
-              target="_top"
+            <button
+              type="button"
               className="icon-link"
               aria-label={t('Sign out', 'تسجيل الخروج')}
+              onClick={() => void signOut()}
             >
               <LogOut size={18} />
-            </a>
+            </button>
           </div>
         </header>
         <main className="admin-main">
@@ -504,9 +664,7 @@ export default function AdminDashboard({
             )}
           </section>
           <footer className="admin-bottom">
-            <span>
-              {t('Signed in as', 'تم تسجيل الدخول باسم')} <bdi>{email}</bdi>
-            </span>
+            <span>{t('Admin session active', 'جلسة المسؤول مفعّلة')}</span>
             <span>HILAL OVEN</span>
           </footer>
         </main>

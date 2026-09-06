@@ -16,8 +16,8 @@ export interface MenuItem {
   descriptionAr: string;
   priceLbp: number;
   available: boolean;
-  createdAt: number;
-  updatedAt: number;
+  createdAt: string;
+  updatedAt: string;
 }
 export const formatPrice = (value: number, lang: Language) =>
   `${new Intl.NumberFormat(lang === 'ar' ? 'ar-LB' : 'en-US', { maximumFractionDigits: 0 }).format(value)} ${lang === 'ar' ? 'ل.ل.' : 'LBP'}`;
