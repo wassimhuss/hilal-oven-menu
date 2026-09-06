@@ -44,4 +44,6 @@ Create a **Static Site** with:
 - Build command: `npm ci && npm run build`
 - Publish directory: `dist/client`
 
-`render.yaml` contains the same settings. Generate the printed QR code only after the final Render URL is known.
+`render.yaml` contains the same settings. The live site is
+`https://hilal-oven-menu.onrender.com/`. The PNG and SVG QR files in `public/`
+were decoded and verified against that exact address.
