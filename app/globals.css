@@ -793,6 +793,70 @@ h1 {
   border-radius: 9px;
   overflow: hidden;
 }
+.admin-category-manager {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 9px;
+  overflow: hidden;
+  margin-bottom: 24px;
+}
+.admin-category-manager .admin-section-top {
+  border-bottom: 1px solid var(--border);
+}
+.admin-category-manager .eyebrow {
+  display: block;
+  margin-bottom: 5px;
+}
+.admin-category-manager .admin-section-top h2 {
+  font-size: 24px;
+}
+.admin-category-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+}
+.admin-category-row {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 16px 18px;
+  border-inline-end: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.admin-category-row > svg {
+  color: #9c7b3c;
+  flex: none;
+}
+.admin-category-row > div:nth-child(2) {
+  min-width: 0;
+  margin-inline-end: auto;
+}
+.admin-category-row strong,
+.admin-category-row span {
+  display: block;
+  overflow-wrap: anywhere;
+}
+.admin-category-row strong {
+  font-size: 15px;
+}
+.admin-category-row span {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.admin-category-row .item-edit-controls {
+  flex: none;
+}
+.admin-category-row .item-edit-controls button {
+  min-width: 36px;
+  min-height: 36px;
+  padding: 7px 9px;
+}
+.admin-category-empty {
+  margin: 0;
+  padding: 20px 24px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+}
 .admin-section-top {
   display: flex;
   gap: 18px;

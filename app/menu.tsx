@@ -19,13 +19,14 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-import { categories, formatPrice, type MenuItem } from '@/lib/menu';
-import { listMenuItems } from '@/lib/supabase-menu';
+import { formatPrice, type MenuCategory, type MenuItem } from '@/lib/menu';
+import { listMenuCategories, listMenuItems } from '@/lib/supabase-menu';
 
 export default function Menu() {
   const [lang, setLang] = useLanguage();
-  const [category, setCategory] = useState<string>('manakish');
+  const [category, setCategory] = useState<string>('');
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [status, setStatus] = useState<'ready' | 'loading' | 'error'>(
     'loading',
   );
@@ -40,10 +41,19 @@ export default function Menu() {
       controller?.abort();
       controller = new AbortController();
       try {
-        const data = await listMenuItems();
+        const [itemData, categoryData] = await Promise.all([
+          listMenuItems(),
+          listMenuCategories(),
+        ]);
         if (controller.signal.aborted) return;
         if (!disposed) {
-          setItems(data);
+          setItems(itemData);
+          setCategories(categoryData);
+          setCategory((current) =>
+            categoryData.some((entry) => entry.id === current)
+              ? current
+              : (categoryData[0]?.id ?? ''),
+          );
           setStatus('ready');
           setRefreshFailed(false);
           hasLoaded = true;
@@ -134,37 +144,81 @@ export default function Menu() {
               <span>{ar ? 'LBP' : 'ل.ل.'}</span>
             </span>
           </div>
-          <Tabs
-            value={category}
-            onValueChange={(v) => setCategory(String(v))}
-            className="menu-tabs"
-          >
-            <div className="category-nav">
-              <TabsList
-                className="category-list"
-                aria-label={ar ? 'أقسام القائمة' : 'Menu categories'}
+          {status === 'error' ? (
+            <Empty>
+              <EmptyTitle>
+                {ar ? 'تعذّر تحميل القائمة' : 'The menu could not load'}
+              </EmptyTitle>
+              <EmptyDescription>
+                {ar
+                  ? 'يرجى المحاولة مجدداً.'
+                  : 'Please try again in a moment.'}
+              </EmptyDescription>
+              <button
+                className="text-link"
+                onClick={() => {
+                  setStatus('loading');
+                  setRetry((v) => v + 1);
+                }}
               >
-                {categories.map((c) => (
-                  <TabsTrigger key={c.id} value={c.id} className="category-tab">
-                    {c[lang]}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </div>
-            {categories.map((c, index) => (
+                <RefreshCw size={15} />
+                {ar ? 'حاول مجدداً' : 'Try again'}
+              </button>
+              <a className="text-link" href="tel:+96171636189">
+                <bdi>71 636 189</bdi>
+              </a>
+            </Empty>
+          ) : status === 'ready' && !categories.length ? (
+            <Empty className="menu-empty">
+              <EmptyHeader>
+                <Wheat size={28} strokeWidth={1.2} className="empty-wheat" />
+                <EmptyTitle>
+                  {ar ? 'القائمة قيد التحضير' : 'Our menu is being prepared'}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {ar
+                    ? 'اتصل بنا للاستفسار عن الأصناف والأسعار.'
+                    : 'Call us for today’s items and prices.'}
+                </EmptyDescription>
+              </EmptyHeader>
+              <a className="text-link" href="tel:+96171636189">
+                <Phone size={15} />
+                <bdi>71 636 189</bdi>
+                <ArrowUpRight size={15} />
+              </a>
+            </Empty>
+          ) : (
+            <Tabs
+              value={category}
+              onValueChange={(v) => setCategory(String(v))}
+              className="menu-tabs"
+            >
+              <div className="category-nav">
+                <TabsList
+                  className="category-list"
+                  aria-label={ar ? 'أقسام القائمة' : 'Menu categories'}
+                >
+                  {categories.map((c) => (
+                    <TabsTrigger key={c.id} value={c.id} className="category-tab">
+                      {ar ? c.nameAr : c.nameEn}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </div>
+              {categories.map((c, index) => (
               <TabsContent key={c.id} value={c.id} className="category-panel">
                 <div className="category-heading">
                   <div className="category-heading-copy">
                     <span className="category-number">0{index + 1}</span>
-                    <h2>{c[lang]}</h2>
+                    <h2>{ar ? c.nameAr : c.nameEn}</h2>
                     <span className="category-other" lang={ar ? 'en' : 'ar'}>
-                      {ar ? c.en : c.ar}
+                      {ar ? c.nameEn : c.nameAr}
                     </span>
                   </div>
                   <div
                     aria-hidden="true"
                     className="category-photo"
-                    style={{ backgroundPosition: c.position }}
+                    style={{ backgroundPosition: c.imagePosition }}
                   />
                 </div>
                 <div className="menu-items" aria-live="polite">
@@ -185,30 +239,6 @@ export default function Menu() {
                     <p className="state-message">
                       {ar ? 'جارٍ تحميل القائمة…' : 'Loading the menu…'}
                     </p>
-                  ) : status === 'error' ? (
-                    <Empty>
-                      <EmptyTitle>
-                        {ar ? 'تعذّر تحميل القائمة' : 'The menu could not load'}
-                      </EmptyTitle>
-                      <EmptyDescription>
-                        {ar
-                          ? 'يرجى المحاولة مجدداً.'
-                          : 'Please try again in a moment.'}
-                      </EmptyDescription>
-                      <button
-                        className="text-link"
-                        onClick={() => {
-                          setStatus('loading');
-                          setRetry((v) => v + 1);
-                        }}
-                      >
-                        <RefreshCw size={15} />
-                        {ar ? 'حاول مجدداً' : 'Try again'}
-                      </button>
-                      <a className="text-link" href="tel:+96171636189">
-                        <bdi>71 636 189</bdi>
-                      </a>
-                    </Empty>
                   ) : items.filter((i) => i.category === c.id).length ? (
                     items
                       .filter((i) => i.category === c.id)
@@ -269,8 +299,9 @@ export default function Menu() {
                   )}
                 </div>
               </TabsContent>
-            ))}
-          </Tabs>
+              ))}
+            </Tabs>
+          )}
           <div className="menu-end">
             <span />
             <Wheat size={21} strokeWidth={1.1} />

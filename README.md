@@ -13,8 +13,10 @@ Mobile-first Arabic/English customer menu at `/`, with PIN-protected menu manage
 ## Supabase setup
 
 1. Open the Supabase SQL Editor for the project.
-2. Run `supabase/migrations/001_menu_and_pin_admin.sql` once.
+2. Run `supabase/migrations/001_menu_and_pin_admin.sql` once, then run `supabase/migrations/002_admin_categories.sql`.
 3. Generate a bcrypt hash locally and set it in `private.admin_config`. Do not put the plain PIN in source control.
+
+Categories are managed by the administrator from the dashboard. A category with menu items cannot be deleted; move or delete those items first.
 
 The app uses the project's publishable key. It does not need a service-role key or a paid Render database.
 
