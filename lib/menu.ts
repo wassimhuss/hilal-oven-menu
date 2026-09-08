@@ -5,6 +5,7 @@ export interface MenuCategory {
   id: CategoryId;
   nameEn: string;
   nameAr: string;
+  imagePosition: string;
   createdAt: string;
   updatedAt: string;
 }
