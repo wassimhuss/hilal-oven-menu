@@ -218,6 +218,7 @@ export default function Menu() {
                   <div
                     aria-hidden="true"
                     className="category-photo"
+                    style={{ backgroundPosition: c.imagePosition }}
                   />
                 </div>
                 <div className="menu-items" aria-live="polite">
