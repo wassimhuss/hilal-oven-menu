@@ -13,6 +13,7 @@ import {
   RefreshCw,
   LogOut,
   Wheat,
+  Tags,
   LockKeyhole,
   ArrowLeft,
 } from 'lucide-react';
@@ -50,20 +51,19 @@ import {
   EmptyTitle,
   EmptyDescription,
 } from '@/components/ui/empty';
-import {
-  categories,
-  formatPrice,
-  type MenuItem,
-  type CategoryId,
-} from '@/lib/menu';
+import { formatPrice, type MenuCategory, type MenuItem } from '@/lib/menu';
 import {
   AdminRequestError,
+  createMenuCategory,
   createMenuItem,
+  deleteMenuCategory,
   deleteMenuItem,
+  listMenuCategories,
   listMenuItems,
   loginAdmin,
   logoutAdmin,
   updateMenuItem,
+  updateMenuCategory,
   validateAdminSession,
 } from '@/lib/supabase-menu';
 
@@ -72,7 +72,7 @@ type Draft = {
   nameAr: string;
   descriptionEn: string;
   descriptionAr: string;
-  category: CategoryId;
+  category: string;
   price: string;
   available: boolean;
 };
@@ -81,9 +81,7 @@ const newDraft = (category: string): Draft => ({
   nameAr: '',
   descriptionEn: '',
   descriptionAr: '',
-  category: categories.some((c) => c.id === category)
-    ? (category as CategoryId)
-    : 'manakish',
+  category,
   price: '',
   available: true,
 });
@@ -258,6 +256,7 @@ function Dashboard({
   const ar = lang === 'ar';
   const t = (en: string, arabic: string) => (ar ? arabic : en);
   const [items, setItems] = useState<MenuItem[]>([]);
+  const [categories, setCategories] = useState<MenuCategory[]>([]);
   const [filter, setFilter] = useState('all');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -265,12 +264,30 @@ function Dashboard({
   const [error, setError] = useState('');
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<MenuItem | null>(null);
-  const [draft, setDraft] = useState<Draft>(newDraft('manakish'));
+  const [draft, setDraft] = useState<Draft>(newDraft(''));
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [toDelete, setToDelete] = useState<MenuItem | null>(null);
   const [formError, setFormError] = useState('');
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(
+    null,
+  );
+  const [categoryDraft, setCategoryDraft] = useState({ nameEn: '', nameAr: '' });
+  const [categorySaving, setCategorySaving] = useState(false);
+  const [categoryError, setCategoryError] = useState('');
+  const [categoryToDelete, setCategoryToDelete] = useState<MenuCategory | null>(
+    null,
+  );
   const translateError = (err: unknown) => {
+    if (
+      err instanceof AdminRequestError &&
+      err.message.includes('CATEGORY_IN_USE')
+    )
+      return t(
+        'Move or delete this category’s items before deleting it.',
+        'انقل أصناف هذا القسم أو احذفها قبل حذف القسم.',
+      );
     if (err instanceof AdminRequestError && err.kind === 'conflict')
       return t(
         'This item changed in another session. Close this form, refresh, and try again.',
@@ -290,8 +307,12 @@ function Dashboard({
   };
   const refresh = useCallback(async () => {
     try {
-      const data = await listMenuItems();
-      setItems(data);
+      const [itemData, categoryData] = await Promise.all([
+        listMenuItems(),
+        listMenuCategories(),
+      ]);
+      setItems(itemData);
+      setCategories(categoryData);
       setLoadError(false);
     } catch {
       setLoadError(true);
@@ -304,27 +325,14 @@ function Dashboard({
     void refresh();
   };
   useEffect(() => {
-    let active = true;
-    void listMenuItems()
-      .then((data) => {
-        if (active) {
-          setItems(data);
-          setLoadError(false);
-        }
-      })
-      .catch(() => {
-        if (active) setLoadError(true);
-      })
-      .finally(() => {
-        if (active) setLoading(false);
-      });
-    return () => {
-      active = false;
-    };
-  }, []);
+    const timer = window.setTimeout(() => void refresh(), 0);
+    return () => window.clearTimeout(timer);
+  }, [refresh]);
   const startAdd = () => {
+    const initialCategory =
+      filter !== 'all' ? filter : (categories[0]?.id ?? '');
     setEditing(null);
-    setDraft(newDraft(filter));
+    setDraft(newDraft(initialCategory));
     setFormError('');
     setOpen(true);
   };
@@ -444,6 +452,91 @@ function Dashboard({
       setSaving(false);
     }
   }
+  const startAddCategory = () => {
+    setEditingCategory(null);
+    setCategoryDraft({ nameEn: '', nameAr: '' });
+    setCategoryError('');
+    setCategoryOpen(true);
+  };
+  const startEditCategory = (category: MenuCategory) => {
+    setEditingCategory(category);
+    setCategoryDraft({ nameEn: category.nameEn, nameAr: category.nameAr });
+    setCategoryError('');
+    setCategoryOpen(true);
+  };
+  async function saveCategory(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (categorySaving) return;
+    const body = {
+      nameEn: categoryDraft.nameEn.trim(),
+      nameAr: categoryDraft.nameAr.trim(),
+    };
+    if (!body.nameEn || !body.nameAr) {
+      setCategoryError(
+        t(
+          'Add a category name in both languages.',
+          'أدخل اسم القسم باللغتين.',
+        ),
+      );
+      return;
+    }
+    setCategorySaving(true);
+    setCategoryError('');
+    setNotice('');
+    setError('');
+    try {
+      const saved = editingCategory
+        ? await updateMenuCategory(
+            sessionToken,
+            editingCategory.id,
+            editingCategory.updatedAt,
+            body,
+          )
+        : await createMenuCategory(sessionToken, body);
+      setCategories((current) =>
+        editingCategory
+          ? current.map((category) =>
+              category.id === editingCategory.id ? saved : category,
+            )
+          : [...current, saved],
+      );
+      setCategoryOpen(false);
+      setNotice(
+        t(
+          editingCategory ? 'Category updated.' : 'Category added.',
+          editingCategory ? 'تم تحديث القسم.' : 'تمت إضافة القسم.',
+        ),
+      );
+    } catch (err) {
+      setCategoryError(translateError(err));
+    } finally {
+      setCategorySaving(false);
+    }
+  }
+  async function removeCategory() {
+    if (!categoryToDelete || categorySaving) return;
+    setCategorySaving(true);
+    setCategoryError('');
+    setNotice('');
+    setError('');
+    try {
+      await deleteMenuCategory(
+        sessionToken,
+        categoryToDelete.id,
+        categoryToDelete.updatedAt,
+      );
+      setCategories((current) =>
+        current.filter((category) => category.id !== categoryToDelete.id),
+      );
+      if (filter === categoryToDelete.id) setFilter('all');
+      setCategoryToDelete(null);
+      setNotice(t('Category removed.', 'تم حذف القسم.'));
+    } catch (err) {
+      setCategoryError(translateError(err));
+    } finally {
+      setCategorySaving(false);
+    }
+  }
   async function signOut() {
     onSessionEnded();
     await logoutAdmin(sessionToken).catch(() => undefined);
@@ -497,7 +590,7 @@ function Dashboard({
             <Button
               className="action-button"
               onClick={startAdd}
-              disabled={loading || loadError}
+              disabled={loading || loadError || !categories.length}
             >
               <Plus size={18} />
               {t('Add item', 'إضافة صنف')}
@@ -522,6 +615,70 @@ function Dashboard({
               {t('Refresh', 'تحديث')}
             </Button>
           </div>
+          <section className="admin-category-manager">
+            <div className="admin-section-top">
+              <div>
+                <span className="eyebrow">{t('ORGANIZATION', 'تنظيم القائمة')}</span>
+                <h2>
+                  {t('Categories', 'الأقسام')} <span>{categories.length}</span>
+                </h2>
+              </div>
+              <Button
+                variant="outline"
+                onClick={startAddCategory}
+                disabled={loading || loadError || categorySaving}
+              >
+                <Plus size={16} />
+                {t('Add category', 'إضافة قسم')}
+              </Button>
+            </div>
+            {loading ? null : categories.length ? (
+              <div className="admin-category-list">
+                {categories.map((category) => (
+                  <div className="admin-category-row" key={category.id}>
+                    <Tags size={17} />
+                    <div>
+                      <strong>{ar ? category.nameAr : category.nameEn}</strong>
+                      <span dir={ar ? 'ltr' : 'rtl'} lang={ar ? 'en' : 'ar'}>
+                        {ar ? category.nameEn : category.nameAr}
+                      </span>
+                    </div>
+                    <div className="item-edit-controls">
+                      <Button
+                        variant="outline"
+                        disabled={categorySaving || saving}
+                        onClick={() => startEditCategory(category)}
+                      >
+                        <Pencil size={16} />
+                        {t('Edit', 'تعديل')}
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        disabled={categorySaving || saving}
+                        onClick={() => {
+                          setCategoryToDelete(category);
+                          setCategoryError('');
+                        }}
+                        aria-label={t(
+                          `Delete ${category.nameEn}`,
+                          `حذف ${category.nameAr}`,
+                        )}
+                      >
+                        <Trash2 size={16} />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="admin-category-empty">
+                {t(
+                  'Create a category before adding menu items.',
+                  'أنشئ قسماً قبل إضافة أصناف القائمة.',
+                )}
+              </p>
+            )}
+          </section>
           {notice && (
             <output className="notice success">
               <Check size={17} />
@@ -552,7 +709,7 @@ function Dashboard({
                       key={c.id}
                       value={c.id}
                     >
-                      {c[lang]}
+                      {ar ? c.nameAr : c.nameEn}
                     </TabsTrigger>
                   ))}
                 </TabsList>
@@ -602,7 +759,16 @@ function Dashboard({
                   <article key={item.id} className="admin-item">
                     <div className="admin-item-detail">
                       <span className="admin-item-category">
-                        {categories.find((c) => c.id === item.category)?.[lang]}
+                        {(() => {
+                          const category = categories.find(
+                            (c) => c.id === item.category,
+                          );
+                          return category
+                            ? ar
+                              ? category.nameAr
+                              : category.nameEn
+                            : item.category;
+                        })()}
                       </span>
                       <h3>{ar ? item.nameAr : item.nameEn}</h3>
                       <p dir={ar ? 'ltr' : 'rtl'} lang={ar ? 'en' : 'ar'}>
@@ -730,7 +896,7 @@ function Dashboard({
                     value={draft.category}
                     onValueChange={(value) => {
                       if (value)
-                        setDraft({ ...draft, category: value as CategoryId });
+                        setDraft({ ...draft, category: value });
                     }}
                     disabled={saving}
                   >
@@ -740,16 +906,23 @@ function Dashboard({
                     >
                       <SelectValue>
                         {
-                          categories.find((c) => c.id === draft.category)?.[
-                            lang
-                          ]
+                          (() => {
+                            const category = categories.find(
+                              (c) => c.id === draft.category,
+                            );
+                            return category
+                              ? ar
+                                ? category.nameAr
+                                : category.nameEn
+                              : '';
+                          })()
                         }
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {categories.map((c) => (
                         <SelectItem key={c.id} value={c.id}>
-                          {c[lang]}
+                          {ar ? c.nameAr : c.nameEn}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -848,6 +1021,96 @@ function Dashboard({
             </form>
           </DialogContent>
         </Dialog>
+        <Dialog
+          open={categoryOpen}
+          onOpenChange={(value) => {
+            if (!categorySaving) setCategoryOpen(value);
+          }}
+        >
+          <DialogContent
+            className="item-dialog category-dialog"
+            dir={ar ? 'rtl' : 'ltr'}
+            showCloseButton={!categorySaving}
+          >
+            <DialogHeader>
+              <DialogTitle>
+                {editingCategory
+                  ? t('Edit category', 'تعديل القسم')
+                  : t('Add a category', 'إضافة قسم')}
+              </DialogTitle>
+              <DialogDescription>
+                {t(
+                  'Categories organize both your customer menu and item editor.',
+                  'تُنظّم الأقسام قائمة الزبائن ومحرّر الأصناف.',
+                )}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={saveCategory} className="item-form">
+              <div className="form-columns">
+                <label>
+                  {t('English name', 'الاسم بالإنجليزية')}
+                  <input
+                    value={categoryDraft.nameEn}
+                    onChange={(event) =>
+                      setCategoryDraft({
+                        ...categoryDraft,
+                        nameEn: event.target.value,
+                      })
+                    }
+                    required
+                    maxLength={80}
+                    dir="ltr"
+                    lang="en"
+                    disabled={categorySaving}
+                  />
+                </label>
+                <label>
+                  {t('Arabic name', 'الاسم بالعربية')}
+                  <input
+                    value={categoryDraft.nameAr}
+                    onChange={(event) =>
+                      setCategoryDraft({
+                        ...categoryDraft,
+                        nameAr: event.target.value,
+                      })
+                    }
+                    required
+                    maxLength={80}
+                    dir="rtl"
+                    lang="ar"
+                    disabled={categorySaving}
+                  />
+                </label>
+              </div>
+              {categoryError && (
+                <p className="notice error" role="alert">
+                  {categoryError}
+                </p>
+              )}
+              <div className="form-actions">
+                <Button
+                  variant="outline"
+                  type="button"
+                  disabled={categorySaving}
+                  onClick={() => setCategoryOpen(false)}
+                >
+                  {t('Cancel', 'إلغاء')}
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={categorySaving}
+                  className="action-button"
+                >
+                  {categorySaving
+                    ? t('Saving…', 'جارٍ الحفظ…')
+                    : editingCategory
+                      ? t('Save category', 'حفظ القسم')
+                      : t('Add category', 'إضافة قسم')}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
         <AlertDialog
           open={!!toDelete}
           onOpenChange={(value) => {
@@ -886,6 +1149,48 @@ function Dashboard({
                 {saving
                   ? t('Removing…', 'جارٍ الحذف…')
                   : t('Remove item', 'حذف الصنف')}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+        <AlertDialog
+          open={!!categoryToDelete}
+          onOpenChange={(value) => {
+            if (!value && !categorySaving) setCategoryToDelete(null);
+          }}
+        >
+          <AlertDialogContent
+            dir={ar ? 'rtl' : 'ltr'}
+            className="delete-dialog"
+          >
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                {t('Remove this category?', 'حذف هذا القسم؟')}
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {t(
+                  `“${categoryToDelete?.nameEn ?? ''}” can only be removed when it has no menu items. Move or remove its items first.`,
+                  `لا يمكن حذف «${categoryToDelete?.nameAr ?? ''}» إلا إذا لم يحتوِ على أصناف. انقل الأصناف أو احذفها أولاً.`,
+                )}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            {categoryError && (
+              <p className="notice error" role="alert">
+                {categoryError}
+              </p>
+            )}
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={categorySaving}>
+                {t('Keep category', 'الاحتفاظ بالقسم')}
+              </AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                disabled={categorySaving}
+                onClick={removeCategory}
+              >
+                {categorySaving
+                  ? t('Removing…', 'جارٍ الحذف…')
+                  : t('Remove category', 'حذف القسم')}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
