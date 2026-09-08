@@ -30,6 +30,7 @@ type CategoryRow = {
   name_en: string;
   name_ar: string;
   image_position: string;
+  image_path: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -55,6 +56,7 @@ function categoryRowToCategory(row: CategoryRow): MenuCategory {
     nameEn: row.name_en,
     nameAr: row.name_ar,
     imagePosition: row.image_position,
+    imagePath: row.image_path,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -145,6 +147,7 @@ type ItemInput = {
 type CategoryInput = {
   nameEn: string;
   nameAr: string;
+  imagePath: string | null;
 };
 
 const itemArgs = (token: string, item: ItemInput) => ({
@@ -200,7 +203,7 @@ export async function deleteMenuItem(
 
 export async function createMenuCategory(
   token: string,
-  category: CategoryInput,
+  category: Omit<CategoryInput, 'imagePath'>,
 ): Promise<MenuCategory> {
   const { data, error } = await supabase.rpc('admin_create_category', {
     p_session_token: token,
@@ -217,15 +220,75 @@ export async function updateMenuCategory(
   expectedUpdatedAt: string,
   category: CategoryInput,
 ): Promise<MenuCategory> {
-  const { data, error } = await supabase.rpc('admin_update_category', {
+  const { data, error } = await supabase.rpc('admin_update_category_with_image', {
     p_session_token: token,
     p_category_id: id,
     p_expected_updated_at: expectedUpdatedAt,
     p_name_en: category.nameEn,
     p_name_ar: category.nameAr,
+    p_image_path: category.imagePath,
   });
   if (error) throw rpcError(error);
   return categoryRowToCategory(data as CategoryRow);
+}
+
+const CATEGORY_IMAGE_BUCKET = 'category-images';
+
+export function categoryImageUrl(path: string | null): string | null {
+  if (!path) return null;
+  return supabase.storage.from(CATEGORY_IMAGE_BUCKET).getPublicUrl(path).data
+    .publicUrl;
+}
+
+export async function uploadCategoryImage(
+  token: string,
+  categoryId: string,
+  file: File,
+): Promise<string> {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!allowedTypes.includes(file.type))
+    throw new Error('Choose a JPG, PNG, or WebP image.');
+  if (file.size > 5 * 1024 * 1024)
+    throw new Error('Choose an image smaller than 5 MB.');
+
+  const { data, error } = await supabase.functions.invoke(
+    'category-image-upload',
+    {
+      body: {
+        sessionToken: token,
+        categoryId,
+        contentType: file.type,
+      },
+    },
+  );
+  if (error) throw new Error(error.message);
+  if (!data?.path || !data?.token)
+    throw new Error('Could not prepare the image upload.');
+
+  const { error: uploadError } = await supabase.storage
+    .from(CATEGORY_IMAGE_BUCKET)
+    .uploadToSignedUrl(data.path, data.token, file, {
+      cacheControl: '31536000',
+      contentType: file.type,
+    });
+  if (uploadError) throw new Error(uploadError.message);
+  return data.path as string;
+}
+
+export async function removeCategoryImage(
+  token: string,
+  categoryId: string,
+  imagePath: string,
+): Promise<void> {
+  const { error } = await supabase.functions.invoke('category-image-upload', {
+    body: {
+      action: 'delete',
+      sessionToken: token,
+      categoryId,
+      imagePath,
+    },
+  });
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteMenuCategory(

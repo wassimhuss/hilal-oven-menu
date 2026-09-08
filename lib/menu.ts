@@ -6,6 +6,7 @@ export interface MenuCategory {
   nameEn: string;
   nameAr: string;
   imagePosition: string;
+  imagePath: string | null;
   createdAt: string;
   updatedAt: string;
 }

@@ -857,6 +857,32 @@ h1 {
   color: var(--muted-foreground);
   font-size: 14px;
 }
+.file-input-help,
+.selected-image-file {
+  display: block;
+  margin-top: 7px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.selected-image-file {
+  margin: -6px 0 0;
+}
+.category-image-preview {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.category-image-preview-photo {
+  width: 88px;
+  height: 58px;
+  border-radius: 4px;
+  background-position: center;
+  background-size: cover;
+}
 .admin-section-top {
   display: flex;
   gap: 18px;
