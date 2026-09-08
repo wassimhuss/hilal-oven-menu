@@ -29,6 +29,7 @@ type CategoryRow = {
   id: string;
   name_en: string;
   name_ar: string;
+  image_position: string;
   created_at: string;
   updated_at: string;
 };
@@ -53,6 +54,7 @@ function categoryRowToCategory(row: CategoryRow): MenuCategory {
     id: row.id,
     nameEn: row.name_en,
     nameAr: row.name_ar,
+    imagePosition: row.image_position,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
