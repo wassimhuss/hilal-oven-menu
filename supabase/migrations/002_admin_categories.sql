@@ -9,18 +9,25 @@ create table if not exists public.menu_categories (
   ),
   name_en text not null check (length(btrim(name_en)) between 1 and 80),
   name_ar text not null check (length(btrim(name_ar)) between 1 and 80),
+  image_position text not null default '50% 50%'
+    check (length(btrim(image_position)) between 3 and 40),
   created_at timestamptz not null default clock_timestamp(),
   updated_at timestamptz not null default clock_timestamp()
 );
 
-insert into public.menu_categories (id, name_en, name_ar)
+alter table public.menu_categories
+  add column if not exists image_position text not null default '50% 50%'
+  check (length(btrim(image_position)) between 3 and 40);
+
+insert into public.menu_categories (id, name_en, name_ar, image_position)
 values
-  ('manakish', 'Manakish', 'مناقيش'),
-  ('croissants', 'Croissants', 'كرواسون'),
-  ('soiree', 'Soiree', 'سواريه'),
-  ('pizza', 'Pizza', 'بيتزا'),
-  ('drinks', 'Cold drinks', 'مشروبات باردة')
-on conflict (id) do nothing;
+  ('manakish', 'Manakish', 'مناقيش', '0% 6%'),
+  ('croissants', 'Croissants', 'كرواسون', '100% 9%'),
+  ('soiree', 'Soiree', 'سواريه', '100% 52%'),
+  ('pizza', 'Pizza', 'بيتزا', '100% 100%'),
+  ('drinks', 'Cold drinks', 'مشروبات باردة', '22% 99%')
+on conflict (id) do update
+set image_position = excluded.image_position;
 
 alter table public.menu_items
   drop constraint if exists menu_items_category_check;
