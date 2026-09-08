@@ -20,7 +20,11 @@ import {
   EmptyDescription,
 } from '@/components/ui/empty';
 import { formatPrice, type MenuCategory, type MenuItem } from '@/lib/menu';
-import { listMenuCategories, listMenuItems } from '@/lib/supabase-menu';
+import {
+  categoryImageUrl,
+  listMenuCategories,
+  listMenuItems,
+} from '@/lib/supabase-menu';
 
 export default function Menu() {
   const [lang, setLang] = useLanguage();
@@ -218,7 +222,13 @@ export default function Menu() {
                   <div
                     aria-hidden="true"
                     className="category-photo"
-                    style={{ backgroundPosition: c.imagePosition }}
+                    style={{
+                      backgroundImage: categoryImageUrl(c.imagePath)
+                        ? `url("${categoryImageUrl(c.imagePath)}")`
+                        : undefined,
+                      backgroundPosition: c.imagePosition,
+                      backgroundSize: c.imagePath ? 'cover' : undefined,
+                    }}
                   />
                 </div>
                 <div className="menu-items" aria-live="polite">
