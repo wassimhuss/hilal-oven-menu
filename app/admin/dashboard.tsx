@@ -570,19 +570,19 @@ function Dashboard({
     setNotice('');
     setError('');
     try {
+                  if (categoryToDelete.imagePath) {
+        await removeCategoryImage(
+          sessionToken,
+          categoryToDelete.id,
+          categoryToDelete.imagePath,
+        );
+      }
       await deleteMenuCategory(
         sessionToken,
         categoryToDelete.id,
         categoryToDelete.updatedAt,
       );
-      if (categoryToDelete.imagePath) {
-        await removeCategoryImage(
-          sessionToken,
-          categoryToDelete.id,
-          categoryToDelete.imagePath,
-        ).catch(() => undefined);
-      }
-      setCategories((current) =>
+setCategories((current) =>
         current.filter((category) => category.id !== categoryToDelete.id),
       );
       if (filter === categoryToDelete.id) setFilter('all');
