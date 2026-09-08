@@ -54,6 +54,7 @@ import {
 import { formatPrice, type MenuCategory, type MenuItem } from '@/lib/menu';
 import {
   AdminRequestError,
+  categoryImageUrl,
   createMenuCategory,
   createMenuItem,
   deleteMenuCategory,
@@ -62,8 +63,10 @@ import {
   listMenuItems,
   loginAdmin,
   logoutAdmin,
+  removeCategoryImage,
   updateMenuItem,
   updateMenuCategory,
+  uploadCategoryImage,
   validateAdminSession,
 } from '@/lib/supabase-menu';
 
@@ -273,7 +276,12 @@ function Dashboard({
   const [editingCategory, setEditingCategory] = useState<MenuCategory | null>(
     null,
   );
-  const [categoryDraft, setCategoryDraft] = useState({ nameEn: '', nameAr: '' });
+  const [categoryDraft, setCategoryDraft] = useState({
+    nameEn: '',
+    nameAr: '',
+    imagePath: null as string | null,
+  });
+  const [categoryImageFile, setCategoryImageFile] = useState<File | null>(null);
   const [categorySaving, setCategorySaving] = useState(false);
   const [categoryError, setCategoryError] = useState('');
   const [categoryToDelete, setCategoryToDelete] = useState<MenuCategory | null>(
@@ -454,13 +462,19 @@ function Dashboard({
   }
   const startAddCategory = () => {
     setEditingCategory(null);
-    setCategoryDraft({ nameEn: '', nameAr: '' });
+    setCategoryDraft({ nameEn: '', nameAr: '', imagePath: null });
+    setCategoryImageFile(null);
     setCategoryError('');
     setCategoryOpen(true);
   };
   const startEditCategory = (category: MenuCategory) => {
     setEditingCategory(category);
-    setCategoryDraft({ nameEn: category.nameEn, nameAr: category.nameAr });
+    setCategoryDraft({
+      nameEn: category.nameEn,
+      nameAr: category.nameAr,
+      imagePath: category.imagePath,
+    });
+    setCategoryImageFile(null);
     setCategoryError('');
     setCategoryOpen(true);
   };
@@ -470,6 +484,7 @@ function Dashboard({
     const body = {
       nameEn: categoryDraft.nameEn.trim(),
       nameAr: categoryDraft.nameAr.trim(),
+      imagePath: categoryDraft.imagePath,
     };
     if (!body.nameEn || !body.nameAr) {
       setCategoryError(
@@ -485,14 +500,49 @@ function Dashboard({
     setNotice('');
     setError('');
     try {
-      const saved = editingCategory
-        ? await updateMenuCategory(
+      let saved: MenuCategory;
+      const previousImagePath = editingCategory?.imagePath ?? null;
+      if (editingCategory) {
+        const imagePath = categoryImageFile
+          ? await uploadCategoryImage(
+              sessionToken,
+              editingCategory.id,
+              categoryImageFile,
+            )
+          : body.imagePath;
+        saved = await updateMenuCategory(
+          sessionToken,
+          editingCategory.id,
+          editingCategory.updatedAt,
+          { ...body, imagePath },
+        );
+      } else {
+        saved = await createMenuCategory(sessionToken, body);
+        if (categoryImageFile) {
+          const imagePath = await uploadCategoryImage(
             sessionToken,
-            editingCategory.id,
-            editingCategory.updatedAt,
-            body,
-          )
-        : await createMenuCategory(sessionToken, body);
+            saved.id,
+            categoryImageFile,
+          );
+          saved = await updateMenuCategory(
+            sessionToken,
+            saved.id,
+            saved.updatedAt,
+            { ...body, imagePath },
+          );
+        }
+      }
+      if (
+        editingCategory &&
+        previousImagePath &&
+        previousImagePath !== saved.imagePath
+      ) {
+        await removeCategoryImage(
+          sessionToken,
+          editingCategory.id,
+          previousImagePath,
+        ).catch(() => undefined);
+      }
       setCategories((current) =>
         editingCategory
           ? current.map((category) =>
@@ -525,6 +575,13 @@ function Dashboard({
         categoryToDelete.id,
         categoryToDelete.updatedAt,
       );
+      if (categoryToDelete.imagePath) {
+        await removeCategoryImage(
+          sessionToken,
+          categoryToDelete.id,
+          categoryToDelete.imagePath,
+        ).catch(() => undefined);
+      }
       setCategories((current) =>
         current.filter((category) => category.id !== categoryToDelete.id),
       );
@@ -1082,6 +1139,49 @@ function Dashboard({
                   />
                 </label>
               </div>
+              <label>
+                {t('Category image', 'صورة القسم')}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) =>
+                    setCategoryImageFile(event.target.files?.[0] ?? null)
+                  }
+                  disabled={categorySaving}
+                />
+                <span className="file-input-help">
+                  {t(
+                    'JPG, PNG, or WebP, up to 5 MB. Leave empty to keep the current image.',
+                    'JPG أو PNG أو WebP، حتى 5 ميغابايت. اتركه فارغاً للاحتفاظ بالصورة الحالية.',
+                  )}
+                </span>
+              </label>
+              {categoryImageFile && (
+                <p className="selected-image-file">
+                  {t('New image:', 'الصورة الجديدة:')} {categoryImageFile.name}
+                </p>
+              )}
+              {categoryDraft.imagePath && !categoryImageFile && (
+                <div className="category-image-preview">
+                  <div
+                    className="category-image-preview-photo"
+                    aria-hidden="true"
+                    style={{
+                      backgroundImage: `url("${categoryImageUrl(categoryDraft.imagePath)}")`,
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={categorySaving}
+                    onClick={() =>
+                      setCategoryDraft({ ...categoryDraft, imagePath: null })
+                    }
+                  >
+                    {t('Remove image', 'حذف الصورة')}
+                  </Button>
+                </div>
+              )}
               {categoryError && (
                 <p className="notice error" role="alert">
                   {categoryError}
