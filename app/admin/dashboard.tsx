@@ -77,6 +77,7 @@ type Draft = {
   descriptionAr: string;
   category: string;
   price: string;
+  variants: Array<{ nameEn: string; nameAr: string; price: string }>;
   available: boolean;
 };
 const newDraft = (category: string): Draft => ({
@@ -86,6 +87,7 @@ const newDraft = (category: string): Draft => ({
   descriptionAr: '',
   category,
   price: '',
+  variants: [],
   available: true,
 });
 const SESSION_KEY = 'hilal-oven-admin-session';
@@ -126,7 +128,9 @@ export default function AdminDashboard() {
   async function submitPin(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (loggingIn || !/^\d{4}$/.test(pin)) {
-      setLoginError('Enter the four-digit code. · أدخل الرمز المؤلف من أربعة أرقام.');
+      setLoginError(
+        'Enter the four-digit code. · أدخل الرمز المؤلف من أربعة أرقام.',
+      );
       return;
     }
     setLoggingIn(true);
@@ -346,7 +350,15 @@ function Dashboard({
   };
   const startEdit = (item: MenuItem) => {
     setEditing(item);
-    setDraft({ ...item, price: String(item.priceLbp) });
+    setDraft({
+      ...item,
+      price: item.variants.length ? '' : String(item.priceLbp),
+      variants: item.variants.map((variant) => ({
+        nameEn: variant.nameEn,
+        nameAr: variant.nameAr,
+        price: String(variant.priceLbp),
+      })),
+    });
     setFormError('');
     setOpen(true);
   };
@@ -354,18 +366,38 @@ function Dashboard({
     event.preventDefault();
     if (saving) return;
     const price = Number(draft.price);
+    const variants = draft.variants.map((variant) => ({
+      nameEn: variant.nameEn.trim(),
+      nameAr: variant.nameAr.trim(),
+      priceLbp: Number(variant.price),
+    }));
+    const variantsValid = variants.every(
+      (variant) =>
+        variant.nameEn.length > 0 &&
+        variant.nameAr.length > 0 &&
+        variant.nameEn.length <= 60 &&
+        variant.nameAr.length <= 60 &&
+        Number.isSafeInteger(variant.priceLbp) &&
+        variant.priceLbp > 0 &&
+        variant.priceLbp <= 1_000_000_000,
+    );
+    const effectivePrice = variants.length
+      ? Math.min(...variants.map((variant) => variant.priceLbp))
+      : price;
     if (
       !draft.nameEn.trim() ||
       !draft.nameAr.trim() ||
-      !draft.price.trim() ||
-      !Number.isSafeInteger(price) ||
-      price <= 0 ||
-      price > 1_000_000_000
+      !variantsValid ||
+      (!variants.length &&
+        (!draft.price.trim() ||
+          !Number.isSafeInteger(price) ||
+          price <= 0 ||
+          price > 1_000_000_000))
     ) {
       setFormError(
         t(
-          'Add a name in both languages and a valid whole-number LBP price.',
-          'أدخل الاسم باللغتين وسعراً صحيحاً بالليرة اللبنانية.',
+          'Add bilingual names and a valid whole-number LBP price for the item or every size.',
+          'أدخل الأسماء باللغتين وسعراً صحيحاً بالليرة اللبنانية للصنف أو لكل حجم.',
         ),
       );
       return;
@@ -380,7 +412,8 @@ function Dashboard({
       descriptionEn: draft.descriptionEn.trim(),
       descriptionAr: draft.descriptionAr.trim(),
       category: draft.category,
-      priceLbp: price,
+      priceLbp: effectivePrice,
+      variants,
       available: draft.available,
     };
     try {
@@ -426,12 +459,11 @@ function Dashboard({
           descriptionEn: item.descriptionEn,
           descriptionAr: item.descriptionAr,
           priceLbp: item.priceLbp,
+          variants: item.variants,
           available,
         },
       );
-      setItems((current) =>
-        current.map((i) => (i.id === item.id ? saved : i)),
-      );
+      setItems((current) => current.map((i) => (i.id === item.id ? saved : i)));
       setNotice(t('Availability updated.', 'تم تحديث التوفّر.'));
     } catch (err) {
       setError(translateError(err));
@@ -446,11 +478,7 @@ function Dashboard({
     setNotice('');
     setError('');
     try {
-      await deleteMenuItem(
-        sessionToken,
-        toDelete.id,
-        toDelete.updatedAt,
-      );
+      await deleteMenuItem(sessionToken, toDelete.id, toDelete.updatedAt);
       setItems((current) => current.filter((i) => i.id !== toDelete.id));
       setToDelete(null);
       setNotice(t('Item removed from the menu.', 'تم حذف الصنف من القائمة.'));
@@ -488,10 +516,7 @@ function Dashboard({
     };
     if (!body.nameEn || !body.nameAr) {
       setCategoryError(
-        t(
-          'Add a category name in both languages.',
-          'أدخل اسم القسم باللغتين.',
-        ),
+        t('Add a category name in both languages.', 'أدخل اسم القسم باللغتين.'),
       );
       return;
     }
@@ -570,7 +595,7 @@ function Dashboard({
     setNotice('');
     setError('');
     try {
-                  if (categoryToDelete.imagePath) {
+      if (categoryToDelete.imagePath) {
         await removeCategoryImage(
           sessionToken,
           categoryToDelete.id,
@@ -582,7 +607,7 @@ function Dashboard({
         categoryToDelete.id,
         categoryToDelete.updatedAt,
       );
-setCategories((current) =>
+      setCategories((current) =>
         current.filter((category) => category.id !== categoryToDelete.id),
       );
       if (filter === categoryToDelete.id) setFilter('all');
@@ -675,7 +700,9 @@ setCategories((current) =>
           <section className="admin-category-manager">
             <div className="admin-section-top">
               <div>
-                <span className="eyebrow">{t('ORGANIZATION', 'تنظيم القائمة')}</span>
+                <span className="eyebrow">
+                  {t('ORGANIZATION', 'تنظيم القائمة')}
+                </span>
                 <h2>
                   {t('Categories', 'الأقسام')} <span>{categories.length}</span>
                 </h2>
@@ -832,7 +859,12 @@ setCategories((current) =>
                         {ar ? item.nameEn : item.nameAr}
                       </p>
                       <span className="admin-price">
-                        {formatPrice(item.priceLbp, lang)}
+                        {item.variants.length
+                          ? t(
+                              `${item.variants.length} sizes · from ${formatPrice(Math.min(...item.variants.map((variant) => variant.priceLbp)), lang)}`,
+                              `${item.variants.length} أحجام · ابتداءً من ${formatPrice(Math.min(...item.variants.map((variant) => variant.priceLbp)), lang)}`,
+                            )
+                          : formatPrice(item.priceLbp, lang)}
                       </span>
                     </div>
                     <div className="admin-item-controls">
@@ -952,8 +984,7 @@ setCategories((current) =>
                   <Select
                     value={draft.category}
                     onValueChange={(value) => {
-                      if (value)
-                        setDraft({ ...draft, category: value });
+                      if (value) setDraft({ ...draft, category: value });
                     }}
                     disabled={saving}
                   >
@@ -962,18 +993,16 @@ setCategories((current) =>
                       aria-labelledby="category-label"
                     >
                       <SelectValue>
-                        {
-                          (() => {
-                            const category = categories.find(
-                              (c) => c.id === draft.category,
-                            );
-                            return category
-                              ? ar
-                                ? category.nameAr
-                                : category.nameEn
-                              : '';
-                          })()
-                        }
+                        {(() => {
+                          const category = categories.find(
+                            (c) => c.id === draft.category,
+                          );
+                          return category
+                            ? ar
+                              ? category.nameAr
+                              : category.nameEn
+                            : '';
+                        })()}
                       </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
@@ -985,24 +1014,139 @@ setCategories((current) =>
                     </SelectContent>
                   </Select>
                 </div>
-                <label>
-                  {t('Price (LBP)', 'السعر (ل.ل.)')}
-                  <input
-                    type="number"
-                    inputMode="numeric"
-                    value={draft.price}
-                    onChange={(e) =>
-                      setDraft({ ...draft, price: e.target.value })
-                    }
-                    required
-                    min={1}
-                    max={1000000000}
-                    step={1}
-                    dir="ltr"
-                    disabled={saving}
-                  />
-                </label>
+                {!draft.variants.length && (
+                  <label>
+                    {t('Price (LBP)', 'السعر (ل.ل.)')}
+                    <input
+                      type="number"
+                      inputMode="numeric"
+                      value={draft.price}
+                      onChange={(e) =>
+                        setDraft({ ...draft, price: e.target.value })
+                      }
+                      required
+                      min={1}
+                      max={1000000000}
+                      step={1}
+                      dir="ltr"
+                      disabled={saving}
+                    />
+                  </label>
+                )}
               </div>
+              <section className="variant-editor">
+                <div className="variant-editor-heading">
+                  <div>
+                    <strong>{t('Size variants', 'خيارات الحجم')}</strong>
+                    <span>
+                      {t(
+                        'Optional. Add a price for each size.',
+                        'اختياري. أضف سعراً لكل حجم.',
+                      )}
+                    </span>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={saving || draft.variants.length >= 12}
+                    onClick={() =>
+                      setDraft({
+                        ...draft,
+                        variants: [
+                          ...draft.variants,
+                          { nameEn: '', nameAr: '', price: '' },
+                        ],
+                      })
+                    }
+                  >
+                    <Plus size={15} />
+                    {t('Add size', 'إضافة حجم')}
+                  </Button>
+                </div>
+                {draft.variants.map((variant, index) => (
+                  <div className="variant-row" key={index}>
+                    <label>
+                      {t('Size in English', 'الحجم بالإنجليزية')}
+                      <input
+                        value={variant.nameEn}
+                        maxLength={60}
+                        required
+                        dir="ltr"
+                        disabled={saving}
+                        placeholder="Small"
+                        onChange={(event) => {
+                          const variants = [...draft.variants];
+                          variants[index] = {
+                            ...variant,
+                            nameEn: event.target.value,
+                          };
+                          setDraft({ ...draft, variants });
+                        }}
+                      />
+                    </label>
+                    <label>
+                      {t('Size in Arabic', 'الحجم بالعربية')}
+                      <input
+                        value={variant.nameAr}
+                        maxLength={60}
+                        required
+                        dir="rtl"
+                        disabled={saving}
+                        placeholder="صغير"
+                        onChange={(event) => {
+                          const variants = [...draft.variants];
+                          variants[index] = {
+                            ...variant,
+                            nameAr: event.target.value,
+                          };
+                          setDraft({ ...draft, variants });
+                        }}
+                      />
+                    </label>
+                    <label>
+                      {t('Price (LBP)', 'السعر (ل.ل.)')}
+                      <input
+                        type="number"
+                        inputMode="numeric"
+                        value={variant.price}
+                        min={1}
+                        max={1000000000}
+                        step={1}
+                        required
+                        dir="ltr"
+                        disabled={saving}
+                        onChange={(event) => {
+                          const variants = [...draft.variants];
+                          variants[index] = {
+                            ...variant,
+                            price: event.target.value,
+                          };
+                          setDraft({ ...draft, variants });
+                        }}
+                      />
+                    </label>
+                    <Button
+                      type="button"
+                      variant="destructive"
+                      disabled={saving}
+                      aria-label={t(
+                        `Remove size ${index + 1}`,
+                        `حذف الحجم ${index + 1}`,
+                      )}
+                      onClick={() =>
+                        setDraft({
+                          ...draft,
+                          variants: draft.variants.filter(
+                            (_, variantIndex) => variantIndex !== index,
+                          ),
+                        })
+                      }
+                    >
+                      <Trash2 size={16} />
+                    </Button>
+                  </div>
+                ))}
+              </section>
               <label>
                 {t('English description', 'الوصف بالإنجليزية')}
                 <textarea

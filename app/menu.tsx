@@ -3,13 +3,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useLanguage } from '@/lib/use-language';
-import {
-  ArrowUpRight,
-  MapPin,
-  Phone,
-  Wheat,
-  RefreshCw,
-} from 'lucide-react';
+import { ArrowUpRight, MapPin, Phone, Wheat, RefreshCw } from 'lucide-react';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { DirectionProvider } from '@/components/ui/direction';
 import {
@@ -173,9 +167,7 @@ export default function Menu() {
                 {ar ? 'تعذّر تحميل القائمة' : 'The menu could not load'}
               </EmptyTitle>
               <EmptyDescription>
-                {ar
-                  ? 'يرجى المحاولة مجدداً.'
-                  : 'Please try again in a moment.'}
+                {ar ? 'يرجى المحاولة مجدداً.' : 'Please try again in a moment.'}
               </EmptyDescription>
               <button
                 className="text-link"
@@ -222,112 +214,135 @@ export default function Menu() {
                   aria-label={ar ? 'أقسام القائمة' : 'Menu categories'}
                 >
                   {categories.map((c) => (
-                    <TabsTrigger key={c.id} value={c.id} className="category-tab">
+                    <TabsTrigger
+                      key={c.id}
+                      value={c.id}
+                      className="category-tab"
+                    >
                       {ar ? c.nameAr : c.nameEn}
                     </TabsTrigger>
                   ))}
                 </TabsList>
               </div>
               {categories.map((c, index) => (
-              <TabsContent key={c.id} value={c.id} className="category-panel">
-                <div className="category-heading">
-                  <div className="category-heading-copy">
-                    <span className="category-number">0{index + 1}</span>
-                    <h2>{ar ? c.nameAr : c.nameEn}</h2>
-                    <span className="category-other" lang={ar ? 'en' : 'ar'}>
-                      {ar ? c.nameEn : c.nameAr}
-                    </span>
+                <TabsContent key={c.id} value={c.id} className="category-panel">
+                  <div className="category-heading">
+                    <div className="category-heading-copy">
+                      <span className="category-number">0{index + 1}</span>
+                      <h2>{ar ? c.nameAr : c.nameEn}</h2>
+                      <span className="category-other" lang={ar ? 'en' : 'ar'}>
+                        {ar ? c.nameEn : c.nameAr}
+                      </span>
+                    </div>
+                    <div
+                      aria-hidden="true"
+                      className="category-photo"
+                      style={{
+                        backgroundImage: categoryImageUrl(c.imagePath)
+                          ? `url("${categoryImageUrl(c.imagePath)}")`
+                          : undefined,
+                        backgroundPosition: c.imagePosition,
+                        backgroundSize: c.imagePath ? 'cover' : undefined,
+                      }}
+                    />
                   </div>
-                  <div
-                    aria-hidden="true"
-                    className="category-photo"
-                    style={{
-                      backgroundImage: categoryImageUrl(c.imagePath)
-                        ? `url("${categoryImageUrl(c.imagePath)}")`
-                        : undefined,
-                      backgroundPosition: c.imagePosition,
-                      backgroundSize: c.imagePath ? 'cover' : undefined,
-                    }}
-                  />
-                </div>
-                <div className="menu-items" aria-live="polite">
-                  {refreshFailed && (
-                    <p className="notice error">
-                      {ar
-                        ? 'تعذّر تحديث القائمة. قد تكون بعض المعلومات قديمة.'
-                        : 'Could not refresh the menu. Some details may have changed.'}{' '}
-                      <button
-                        className="text-link"
-                        onClick={() => setRetry((v) => v + 1)}
-                      >
-                        {ar ? 'حاول مجدداً' : 'Retry'}
-                      </button>
-                    </p>
-                  )}
-                  {status === 'loading' ? (
-                    <p className="state-message">
-                      {ar ? 'جارٍ تحميل القائمة…' : 'Loading the menu…'}
-                    </p>
-                  ) : items.filter((i) => i.category === c.id).length ? (
-                    items
-                      .filter((i) => i.category === c.id)
-                      .map((item) => (
-                        <article
-                          className={`menu-item ${!item.available ? 'is-unavailable' : ''}`}
-                          key={item.id}
+                  <div className="menu-items" aria-live="polite">
+                    {refreshFailed && (
+                      <p className="notice error">
+                        {ar
+                          ? 'تعذّر تحديث القائمة. قد تكون بعض المعلومات قديمة.'
+                          : 'Could not refresh the menu. Some details may have changed.'}{' '}
+                        <button
+                          className="text-link"
+                          onClick={() => setRetry((v) => v + 1)}
                         >
-                          <div>
-                            <h3>
-                              {ar
-                                ? item.nameAr || item.nameEn
-                                : item.nameEn || item.nameAr}
-                            </h3>
-                            {(ar ? item.descriptionAr : item.descriptionEn) && (
-                              <p>
-                                {ar ? item.descriptionAr : item.descriptionEn}
-                              </p>
-                            )}
-                            {!item.available && (
-                              <span className="unavailable-label">
+                          {ar ? 'حاول مجدداً' : 'Retry'}
+                        </button>
+                      </p>
+                    )}
+                    {status === 'loading' ? (
+                      <p className="state-message">
+                        {ar ? 'جارٍ تحميل القائمة…' : 'Loading the menu…'}
+                      </p>
+                    ) : items.filter((i) => i.category === c.id).length ? (
+                      items
+                        .filter((i) => i.category === c.id)
+                        .map((item) => (
+                          <article
+                            className={`menu-item ${!item.available ? 'is-unavailable' : ''}`}
+                            key={item.id}
+                          >
+                            <div className="menu-item-copy">
+                              <h3>
                                 {ar
-                                  ? 'غير متوفر حالياً'
-                                  : 'Currently unavailable'}
+                                  ? item.nameAr || item.nameEn
+                                  : item.nameEn || item.nameAr}
+                              </h3>
+                              {(ar
+                                ? item.descriptionAr
+                                : item.descriptionEn) && (
+                                <p>
+                                  {ar ? item.descriptionAr : item.descriptionEn}
+                                </p>
+                              )}
+                              {!item.available && (
+                                <span className="unavailable-label">
+                                  {ar
+                                    ? 'غير متوفر حالياً'
+                                    : 'Currently unavailable'}
+                                </span>
+                              )}
+                            </div>
+                            {item.variants.length ? (
+                              <dl className="item-variants">
+                                {item.variants.map((variant, index) => (
+                                  <div key={`${variant.nameEn}-${index}`}>
+                                    <dt>
+                                      {ar
+                                        ? variant.nameAr || variant.nameEn
+                                        : variant.nameEn || variant.nameAr}
+                                    </dt>
+                                    <dd>
+                                      {formatPrice(variant.priceLbp, lang)}
+                                    </dd>
+                                  </div>
+                                ))}
+                              </dl>
+                            ) : (
+                              <span className="item-price">
+                                {formatPrice(item.priceLbp, lang)}
                               </span>
                             )}
-                          </div>
-                          <span className="item-price">
-                            {formatPrice(item.priceLbp, lang)}
-                          </span>
-                        </article>
-                      ))
-                  ) : (
-                    <Empty className="menu-empty">
-                      <EmptyHeader>
-                        <Wheat
-                          size={28}
-                          strokeWidth={1.2}
-                          className="empty-wheat"
-                        />
-                        <EmptyTitle>
-                          {ar
-                            ? 'القائمة قيد التحضير'
-                            : 'Our menu is being prepared'}
-                        </EmptyTitle>
-                        <EmptyDescription>
-                          {ar
-                            ? 'اتصل بنا للاستفسار عن الأصناف والأسعار.'
-                            : 'Call us for today’s items and prices.'}
-                        </EmptyDescription>
-                      </EmptyHeader>
-                      <a className="text-link" href="tel:+96171636189">
-                        <Phone size={15} />
-                        <bdi>71 636 189</bdi>
-                        <ArrowUpRight size={15} />
-                      </a>
-                    </Empty>
-                  )}
-                </div>
-              </TabsContent>
+                          </article>
+                        ))
+                    ) : (
+                      <Empty className="menu-empty">
+                        <EmptyHeader>
+                          <Wheat
+                            size={28}
+                            strokeWidth={1.2}
+                            className="empty-wheat"
+                          />
+                          <EmptyTitle>
+                            {ar
+                              ? 'القائمة قيد التحضير'
+                              : 'Our menu is being prepared'}
+                          </EmptyTitle>
+                          <EmptyDescription>
+                            {ar
+                              ? 'اتصل بنا للاستفسار عن الأصناف والأسعار.'
+                              : 'Call us for today’s items and prices.'}
+                          </EmptyDescription>
+                        </EmptyHeader>
+                        <a className="text-link" href="tel:+96171636189">
+                          <Phone size={15} />
+                          <bdi>71 636 189</bdi>
+                          <ArrowUpRight size={15} />
+                        </a>
+                      </Empty>
+                    )}
+                  </div>
+                </TabsContent>
               ))}
             </Tabs>
           )}

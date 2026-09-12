@@ -373,6 +373,35 @@ h1 {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.menu-item-copy {
+  min-width: 0;
+  flex: 1;
+}
+.item-variants {
+  min-width: 168px;
+  margin: 0;
+  color: #775b24;
+}
+.item-variants > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 4px 0;
+  border-bottom: 1px dotted color-mix(in srgb, var(--gold) 38%, transparent);
+}
+.item-variants > div:last-child {
+  border-bottom: 0;
+}
+.item-variants dt {
+  font-size: 13px;
+  color: var(--muted-foreground);
+}
+.item-variants dd {
+  margin: 0;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 650;
+}
 .item-price {
   white-space: nowrap;
   font-size: 15px;
@@ -1109,6 +1138,43 @@ h1 {
 .item-form .notice {
   margin: 0;
 }
+.variant-editor {
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--card) 75%, transparent);
+}
+.variant-editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+.variant-editor-heading strong,
+.variant-editor-heading span {
+  display: block;
+}
+.variant-editor-heading span {
+  margin-top: 4px;
+  color: var(--muted-foreground);
+  font-size: 12px;
+}
+.variant-editor-heading button {
+  flex-shrink: 0;
+}
+.variant-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  align-items: end;
+  gap: 9px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+.variant-row > button {
+  min-width: 44px;
+  min-height: 44px;
+}
 .delete-dialog {
   width: calc(100% - 32px) !important;
   max-width: 430px !important;
@@ -1136,6 +1202,16 @@ h1 {
   margin: 0;
 }
 @media (max-width: 600px) {
+  .item-variants {
+    width: 100%;
+    min-width: 0;
+  }
+  .variant-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .variant-row > button {
+    justify-self: end;
+  }
   .admin-header {
     padding: 15px 18px;
   }

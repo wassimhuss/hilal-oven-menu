@@ -1,5 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
-import type { CategoryId, MenuCategory, MenuItem } from './menu';
+import type {
+  CategoryId,
+  MenuCategory,
+  MenuItem,
+  MenuItemVariant,
+} from './menu';
 
 const supabaseUrl =
   process.env.NEXT_PUBLIC_SUPABASE_URL ??
@@ -20,6 +25,11 @@ type MenuRow = {
   description_en: string;
   description_ar: string;
   price_lbp: number;
+  variants: Array<{
+    name_en: string;
+    name_ar: string;
+    price_lbp: number;
+  }> | null;
   available: boolean;
   created_at: string;
   updated_at: string;
@@ -44,6 +54,11 @@ export function menuRowToItem(row: MenuRow): MenuItem {
     descriptionEn: row.description_en,
     descriptionAr: row.description_ar,
     priceLbp: Number(row.price_lbp),
+    variants: (row.variants ?? []).map((variant) => ({
+      nameEn: variant.name_en,
+      nameAr: variant.name_ar,
+      priceLbp: Number(variant.price_lbp),
+    })),
     available: row.available,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -141,6 +156,7 @@ type ItemInput = {
   descriptionEn: string;
   descriptionAr: string;
   priceLbp: number;
+  variants: MenuItemVariant[];
   available: boolean;
 };
 
@@ -158,6 +174,11 @@ const itemArgs = (token: string, item: ItemInput) => ({
   p_description_en: item.descriptionEn,
   p_description_ar: item.descriptionAr,
   p_price_lbp: item.priceLbp,
+  p_variants: item.variants.map((variant) => ({
+    name_en: variant.nameEn,
+    name_ar: variant.nameAr,
+    price_lbp: variant.priceLbp,
+  })),
   p_available: item.available,
 });
 
@@ -220,14 +241,17 @@ export async function updateMenuCategory(
   expectedUpdatedAt: string,
   category: CategoryInput,
 ): Promise<MenuCategory> {
-  const { data, error } = await supabase.rpc('admin_update_category_with_image', {
-    p_session_token: token,
-    p_category_id: id,
-    p_expected_updated_at: expectedUpdatedAt,
-    p_name_en: category.nameEn,
-    p_name_ar: category.nameAr,
-    p_image_path: category.imagePath,
-  });
+  const { data, error } = await supabase.rpc(
+    'admin_update_category_with_image',
+    {
+      p_session_token: token,
+      p_category_id: id,
+      p_expected_updated_at: expectedUpdatedAt,
+      p_name_en: category.nameEn,
+      p_name_ar: category.nameAr,
+      p_image_path: category.imagePath,
+    },
+  );
   if (error) throw rpcError(error);
   return categoryRowToCategory(data as CategoryRow);
 }
