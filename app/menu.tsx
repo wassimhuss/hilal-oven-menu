@@ -44,6 +44,9 @@ export default function Menu() {
   const [category, setCategory] = useState<string>('');
   const [items, setItems] = useState<MenuItem[]>([]);
   const [categories, setCategories] = useState<MenuCategory[]>([]);
+  const [selectedVariants, setSelectedVariants] = useState<
+    Record<string, number>
+  >({});
   const [status, setStatus] = useState<'ready' | 'loading' | 'error'>(
     'loading',
   );
@@ -267,54 +270,82 @@ export default function Menu() {
                     ) : items.filter((i) => i.category === c.id).length ? (
                       items
                         .filter((i) => i.category === c.id)
-                        .map((item) => (
-                          <article
-                            className={`menu-item ${!item.available ? 'is-unavailable' : ''}`}
-                            key={item.id}
-                          >
-                            <div className="menu-item-copy">
-                              <h3>
-                                {ar
-                                  ? item.nameAr || item.nameEn
-                                  : item.nameEn || item.nameAr}
-                              </h3>
-                              {(ar
-                                ? item.descriptionAr
-                                : item.descriptionEn) && (
-                                <p>
-                                  {ar ? item.descriptionAr : item.descriptionEn}
-                                </p>
-                              )}
-                              {!item.available && (
-                                <span className="unavailable-label">
+                        .map((item) => {
+                          const selectedIndex = Math.min(
+                            selectedVariants[item.id] ?? 0,
+                            Math.max(0, item.variants.length - 1),
+                          );
+                          const selectedVariant = item.variants[selectedIndex];
+                          return (
+                            <article
+                              className={`menu-item ${selectedVariant ? 'has-variants' : ''} ${!item.available ? 'is-unavailable' : ''}`}
+                              key={item.id}
+                            >
+                              <div className="menu-item-copy">
+                                <h3>
                                   {ar
-                                    ? 'غير متوفر حالياً'
-                                    : 'Currently unavailable'}
+                                    ? item.nameAr || item.nameEn
+                                    : item.nameEn || item.nameAr}
+                                </h3>
+                                {(ar
+                                  ? item.descriptionAr
+                                  : item.descriptionEn) && (
+                                  <p>
+                                    {ar
+                                      ? item.descriptionAr
+                                      : item.descriptionEn}
+                                  </p>
+                                )}
+                                {!item.available && (
+                                  <span className="unavailable-label">
+                                    {ar
+                                      ? 'غير متوفر حالياً'
+                                      : 'Currently unavailable'}
+                                  </span>
+                                )}
+                              </div>
+                              {selectedVariant ? (
+                                <div className="item-variant-picker">
+                                  <label htmlFor={`item-size-${item.id}`}>
+                                    {ar ? 'الحجم' : 'Size'}
+                                  </label>
+                                  <select
+                                    id={`item-size-${item.id}`}
+                                    value={selectedIndex}
+                                    disabled={!item.available}
+                                    onChange={(event) =>
+                                      setSelectedVariants((current) => ({
+                                        ...current,
+                                        [item.id]: Number(event.target.value),
+                                      }))
+                                    }
+                                  >
+                                    {item.variants.map((variant, index) => (
+                                      <option value={index} key={index}>
+                                        {ar
+                                          ? variant.nameAr || variant.nameEn
+                                          : variant.nameEn || variant.nameAr}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <span
+                                    className="item-price"
+                                    aria-live="polite"
+                                  >
+                                    {formatPrice(
+                                      selectedVariant.priceLbp,
+                                      lang,
+                                    )}
+                                  </span>
+                                </div>
+                              ) : (
+                                <span className="item-price">
+                                  {formatPrice(item.priceLbp, lang)}
                                 </span>
                               )}
-                            </div>
-                            {item.variants.length ? (
-                              <dl className="item-variants">
-                                {item.variants.map((variant, index) => (
-                                  <div key={`${variant.nameEn}-${index}`}>
-                                    <dt>
-                                      {ar
-                                        ? variant.nameAr || variant.nameEn
-                                        : variant.nameEn || variant.nameAr}
-                                    </dt>
-                                    <dd>
-                                      {formatPrice(variant.priceLbp, lang)}
-                                    </dd>
-                                  </div>
-                                ))}
-                              </dl>
-                            ) : (
-                              <span className="item-price">
-                                {formatPrice(item.priceLbp, lang)}
-                              </span>
-                            )}
-                          </article>
-                        ))
+                            </article>
+                          );
+                        })
                     ) : (
                       <Empty className="menu-empty">
                         <EmptyHeader>
