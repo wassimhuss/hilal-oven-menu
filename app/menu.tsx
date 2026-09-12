@@ -306,28 +306,33 @@ export default function Menu() {
                               </div>
                               {selectedVariant ? (
                                 <div className="item-variant-picker">
-                                  <label htmlFor={`item-size-${item.id}`}>
+                                  <span className="item-variant-label">
                                     {ar ? 'الحجم' : 'Size'}
-                                  </label>
-                                  <select
-                                    id={`item-size-${item.id}`}
-                                    value={selectedIndex}
-                                    disabled={!item.available}
-                                    onChange={(event) =>
-                                      setSelectedVariants((current) => ({
-                                        ...current,
-                                        [item.id]: Number(event.target.value),
-                                      }))
-                                    }
-                                  >
+                                  </span>
+                                  <div className="item-size-options">
                                     {item.variants.map((variant, index) => (
-                                      <option value={index} key={index}>
-                                        {ar
-                                          ? variant.nameAr || variant.nameEn
-                                          : variant.nameEn || variant.nameAr}
-                                      </option>
+                                      <button
+                                        type="button"
+                                        key={index}
+                                        className={`item-size-option ${index === selectedIndex ? 'is-selected' : ''}`}
+                                        aria-pressed={index === selectedIndex}
+                                        aria-label={
+                                          ar
+                                            ? variant.nameAr || variant.nameEn
+                                            : variant.nameEn || variant.nameAr
+                                        }
+                                        disabled={!item.available}
+                                        onClick={() =>
+                                          setSelectedVariants((current) => ({
+                                            ...current,
+                                            [item.id]: index,
+                                          }))
+                                        }
+                                      >
+                                        {variant.nameEn || variant.nameAr}
+                                      </button>
                                     ))}
-                                  </select>
+                                  </div>
                                   <span
                                     className="item-price"
                                     aria-live="polite"
