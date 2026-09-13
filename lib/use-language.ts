@@ -2,7 +2,7 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type { Language } from './menu';
 const eventName = 'hilal-language-change';
-let fallback: Language = 'en';
+let fallback: Language = 'ar';
 function subscribe(callback: () => void) {
   window.addEventListener('storage', callback);
   window.addEventListener(eventName, callback);
@@ -30,7 +30,7 @@ export function useLanguage() {
   const lang = useSyncExternalStore(
     subscribe,
     snapshot,
-    () => 'en' as Language,
+    () => 'ar' as Language,
   );
   useEffect(() => {
     document.documentElement.lang = lang;
